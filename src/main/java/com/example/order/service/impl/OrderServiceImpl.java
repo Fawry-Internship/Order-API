@@ -34,7 +34,7 @@ public class OrderServiceImpl implements OrderService {
         log.info("Creating order: {}", orderModel);
 
         try {
-           // log.info("check");
+            // log.info("check");
             if (stockService.checkAvailability(orderModel.getProduct_code())) {
                 log.info("Product is available in stock. Proceeding with order creation.");
 
@@ -48,30 +48,32 @@ public class OrderServiceImpl implements OrderService {
                 double amount = couponService.consumeCoupon(consumptionRequest);
                 log.info("Coupon consumed successfully. Amount: {}", amount);
 
-               ResponseEntity<String> consumeResponse = stockService.consume(order.getProduct_code());
-               log.info("Stock consumed successfully. Response: {}", consumeResponse.getBody());
+                ResponseEntity<String> consumeResponse = stockService.consume(order.getProduct_code());
+                log.info("Stock consumed successfully. Response: {}", consumeResponse.getBody());
 
                 TransactionRequest transactionRequestCustomer = new TransactionRequest();
-                transactionRequestCustomer.setAmount(amount*order.getPrice());
+                transactionRequestCustomer.setAmount(amount * order.getPrice());
                 transactionRequestCustomer.setCardNumber(order.getCardNumber());
                 ResponseEntity<String> withdrawResponse = bankService.withdraw(transactionRequestCustomer);
                 log.info("Customer withdrawal request processed successfully. Response: {}", withdrawResponse.getBody());
 
                 // Assuming merchant deposit is handled separately
-                 TransactionRequest transactionRequestMerchant = new TransactionRequest();
-                 transactionRequestMerchant.setCardNumber("5854894931571752");
-                 transactionRequestMerchant.setAmount(amount*order.getPrice());
-                 bankService.deposit(transactionRequestMerchant);
-                 log.info(" merchant deposit done");
-                 order.setCreationDate(LocalDate.now());
-                 orderRepository.save(order);
+                TransactionRequest transactionRequestMerchant = new TransactionRequest();
+                transactionRequestMerchant.setCardNumber("5854894931571752");
+                transactionRequestMerchant.setAmount(amount * order.getPrice());
+                bankService.deposit(transactionRequestMerchant);
+                log.info(" merchant deposit done");
+                order.setCreationDate(LocalDate.now());
+                order.setCustomerEmail(orderModel.getCustomer_email());
+                orderRepository.save(order);
                 // Send notification
                 EmailModel emailModel = new EmailModel();
                 emailModel.setCreation(String.valueOf(order.getCreationDate()));
-                emailModel.setPrice(String.valueOf(amount*order.getPrice()));
-                sendEmail(order.getCustomerEmail(),emailModel);
-                sendEmail("esraamabrouk126@gmail.com",emailModel);
-
+                emailModel.setPrice(String.valueOf(amount * order.getPrice()));
+                emailModel.setSubject("Order creation ");
+                emailModel.setProduct(order.getProduct_code());
+                sendEmail(order.getCustomerEmail(), emailModel);
+              //  sendEmail("esraamabrouk126@gmail.com", emailModel);
 
 
             } else {
@@ -83,11 +85,10 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-   private void  sendEmail(String to ,EmailModel emailModel){
+    private void sendEmail(String to, EmailModel emailModel) {
         emailModel.setTo(to);
-
-       ResponseEntity<String> notificationResponse = notificationService.sendEmail(emailModel);
-       log.info("Notification sent successfully to =>",to ,". Response: {}", notificationResponse.getBody());
+        ResponseEntity<String> notificationResponse = notificationService.sendEmail(emailModel);
+        log.info("Notification sent successfully to =>", to, ". Response: {}", notificationResponse.getBody());
     }
 
     @Override

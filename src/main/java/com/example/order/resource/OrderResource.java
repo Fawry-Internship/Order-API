@@ -26,14 +26,14 @@ public class OrderResource {
         orderService.createOrder(orderModel);
     }
     @GetMapping("findByCustomerEmail")
-    public List<Order> findOrderByCustomerEmail(@Valid@RequestBody String customerEmail){
+    public List<Order> findOrderByCustomerEmail(@Valid@RequestParam String customerEmail){
         return orderService.findOrderByCustomer_email(customerEmail);
     }
     @GetMapping("ByDateRange")
     public List<Order> searchByDateRange(
-            @RequestBody @DateTimeFormat(pattern = "yyyy-MM-dd")LocalDate from,
-            @RequestBody @DateTimeFormat(pattern = "yyyy-MM-dd")LocalDate to
-            ){
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate from,
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate to
+    ){
         return orderService.findAllOrderBetween(from,to);
     }
 }
