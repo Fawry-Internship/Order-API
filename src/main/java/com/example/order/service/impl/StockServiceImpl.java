@@ -23,9 +23,8 @@ public class StockServiceImpl implements StockService {
         return  availability;
     }
 
-    @Override
     public ResponseEntity<String> consume(String product_code) {
-        ResponseEntity<String> response = restTemplate.getForEntity(consumeUrl + product_code, String.class);
+        ResponseEntity<String> response = restTemplate.postForEntity(consumeUrl + product_code, null, String.class);
         return response;
     }
 

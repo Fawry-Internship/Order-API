@@ -8,11 +8,11 @@ import java.time.LocalDate;
 @Data
 public class OrderModel {
     @NotNull
-    private String product_code;
+    private String productCode;
     @NotNull
-    private String customer_email;
+    private String customerEmail;
     private double price;
     @NotNull
     private String cardNumber;
-    private String coupon_code;
+    private String couponCode;
 }

@@ -15,9 +15,10 @@ import org.springframework.http.ResponseEntity;
 @RequiredArgsConstructor
 public class CouponServiceImpl implements CouponService {
     private final RestTemplate restTemplate;
-   private final String url="http://localhost:8083/coupon/consume";
     @Override
     public Double consumeCoupon(ConsumptionRequest consumptionRequest) {
+        String url="http://localhost:8083/coupon/consume";
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -26,5 +27,17 @@ public class CouponServiceImpl implements CouponService {
         ResponseEntity<Double> response = restTemplate.postForEntity(url, requestEntity, Double.class);
 
         return response.getBody();
+    }
+
+    @Override
+    public Boolean isValidCoupon(String couponCode) {
+        String url = "http://localhost:8083/coupon/validation?couponCode=" + couponCode;
+        return restTemplate.getForObject(url, Boolean.class);
+    }
+
+    @Override
+    public Double calcAmountAfterCouponDiscount(String couponCode, double amount) {
+        String url = "http://localhost:8083/coupon/discount?couponCode=" + couponCode + "&amount=" + amount;
+        return restTemplate.getForObject(url, Double.class);
     }
 }

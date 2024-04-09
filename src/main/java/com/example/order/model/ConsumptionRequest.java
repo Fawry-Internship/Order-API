@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ConsumptionRequest {
-    private Long order_id;
-    private double amount=1;
-    private String customer_email;
-    private String coupon_code;
+    private Long orderId;
+    private double amount;
+    private String customerEmail;
+    private String couponCode;
 }

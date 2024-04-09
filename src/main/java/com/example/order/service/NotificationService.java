@@ -4,6 +4,5 @@ import com.example.order.model.EmailModel;
 import org.springframework.http.ResponseEntity;
 
 public interface NotificationService {
-     ResponseEntity<String> sendEmail( EmailModel emailRequest) ;
-
+     void sendEmail( EmailModel emailRequest) ;
 }

@@ -6,6 +6,8 @@ import com.example.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -16,15 +18,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OrderResource {
     private final OrderService orderService;
+    @PostMapping("create")
+    public ResponseEntity<String> createOrder(@Valid @RequestBody OrderModel orderModel){
+        return new ResponseEntity<>(orderService.createOrder(orderModel), HttpStatus.CREATED);
+    }
 
-    @PostMapping("create/WithoutCoupon")
-    public void createOrderWithoutCoupon(@Valid @RequestBody OrderModel orderModel){
-        orderService.createOrder(orderModel);
-    }
-    @PostMapping("create/WithCoupon")
-    public void createOrderWithCoupon(@Valid @RequestBody OrderModel orderModel){
-        orderService.createOrder(orderModel);
-    }
     @GetMapping("findByCustomerEmail")
     public List<Order> findOrderByCustomerEmail(@Valid@RequestParam String customerEmail){
         return orderService.findOrderByCustomer_email(customerEmail);

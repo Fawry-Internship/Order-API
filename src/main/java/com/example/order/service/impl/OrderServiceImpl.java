@@ -1,6 +1,8 @@
 package com.example.order.service.impl;
 
 import com.example.order.entity.Order;
+import com.example.order.exception.ApiCallFailedException;
+import com.example.order.exception.RecordNotFoundException;
 import com.example.order.mapper.OrderMapper;
 import com.example.order.model.ConsumptionRequest;
 import com.example.order.model.EmailModel;
@@ -8,13 +10,14 @@ import com.example.order.model.OrderModel;
 import com.example.order.model.TransactionRequest;
 import com.example.order.repository.OrderRepository;
 import com.example.order.service.*;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.LocalDate;
-import java.util.Date;
 import java.util.List;
 
 @Service
@@ -29,66 +32,88 @@ public class OrderServiceImpl implements OrderService {
     private final StockService stockService;
     private final OrderMapper mapper;
 
+
     @Override
-    public void createOrder(OrderModel orderModel) {
+    @Transactional(rollbackOn = Exception.class)
+    public String createOrder(OrderModel orderModel) {
         log.info("Creating order: {}", orderModel);
-
         try {
-            // log.info("check");
-            if (stockService.checkAvailability(orderModel.getProduct_code())) {
-                log.info("Product is available in stock. Proceeding with order creation.");
+            if(orderModel.getCouponCode() != null){
+                validateCoupon(orderModel.getCouponCode());
+                log.info("coupon is valid");
+            }
+            validateProductStockAvailability(orderModel.getProductCode());
+            log.info("Product is available in stock. Proceeding with order creation.");
 
-                Order order = mapper.toEntity(orderModel);
+            double amountAfterDiscount =  couponService.calcAmountAfterCouponDiscount(orderModel.getCouponCode(), orderModel.getPrice());
+            log.info("Amount price After discount {}", amountAfterDiscount);
 
-                ConsumptionRequest consumptionRequest = new ConsumptionRequest();
-                consumptionRequest.setOrder_id((long) order.getId());
-                consumptionRequest.setCoupon_code(order.getCoupon_code());
-                consumptionRequest.setCustomer_email(order.getCustomerEmail());
+            applyWithdrawTransactionForCustomer(amountAfterDiscount, orderModel);
+            applyDepositTransactionForMerchant(amountAfterDiscount, orderModel);
 
+            ResponseEntity<String> consumeResponse = stockService.consume(orderModel.getProductCode());
+            log.info("Stock consumed successfully. Response: {}", consumeResponse.getBody());
+
+            Order order = mapper.toEntity(orderModel);
+            order.setCreationDate(LocalDate.now());
+            order.setCustomerEmail(orderModel.getCustomerEmail());
+            order.setPrice(amountAfterDiscount);
+            orderRepository.save(order);
+
+            if(orderModel.getCouponCode() != null){
+                ConsumptionRequest consumptionRequest = new ConsumptionRequest(order.getId(), orderModel.getPrice(), order.getCustomerEmail(), order.getCouponCode());
+                log.info("Consumption coupon request {}", consumptionRequest);
                 double amount = couponService.consumeCoupon(consumptionRequest);
                 log.info("Coupon consumed successfully. Amount: {}", amount);
-
-                ResponseEntity<String> consumeResponse = stockService.consume(order.getProduct_code());
-                log.info("Stock consumed successfully. Response: {}", consumeResponse.getBody());
-
-                TransactionRequest transactionRequestCustomer = new TransactionRequest();
-                transactionRequestCustomer.setAmount(amount * order.getPrice());
-                transactionRequestCustomer.setCardNumber(order.getCardNumber());
-                ResponseEntity<String> withdrawResponse = bankService.withdraw(transactionRequestCustomer);
-                log.info("Customer withdrawal request processed successfully. Response: {}", withdrawResponse.getBody());
-
-                // Assuming merchant deposit is handled separately
-                TransactionRequest transactionRequestMerchant = new TransactionRequest();
-                transactionRequestMerchant.setCardNumber("5854894931571752");
-                transactionRequestMerchant.setAmount(amount * order.getPrice());
-                bankService.deposit(transactionRequestMerchant);
-                log.info(" merchant deposit done");
-                order.setCreationDate(LocalDate.now());
-                order.setCustomerEmail(orderModel.getCustomer_email());
-                orderRepository.save(order);
-                // Send notification
-                EmailModel emailModel = new EmailModel();
-                emailModel.setCreation(String.valueOf(order.getCreationDate()));
-                emailModel.setPrice(String.valueOf(amount * order.getPrice()));
-                emailModel.setSubject("Order creation ");
-                emailModel.setProduct(order.getProduct_code());
-                sendEmail(order.getCustomerEmail(), emailModel);
-              //  sendEmail("esraamabrouk126@gmail.com", emailModel);
-
-
-            } else {
-                log.warn("Product is not available in stock. Order creation aborted.");
             }
+
+            // Send notification
+            EmailModel emailModel = new EmailModel(order.getCustomerEmail(), "Order creation", order.getProductCode(), String.valueOf(amountAfterDiscount), String.valueOf(order.getCreationDate()));
+
+            sendEmail(order.getCustomerEmail(), emailModel);
+            return "success";
+        } catch (HttpClientErrorException e) {
+            log.error("Error occurred during order creation: {}", e.getMessage());
+            return "error: " + e.getResponseBodyAsString();
         } catch (Exception e) {
             log.error("Error occurred during order creation: {}", e.getMessage());
-            // Handle error appropriately
+            throw new ApiCallFailedException("Error occurred during order creation " + e);
+        }
+    }
+
+    private void applyDepositTransactionForMerchant(double amount, OrderModel orderModel) {
+        TransactionRequest transactionRequestMerchant = new TransactionRequest();
+        transactionRequestMerchant.setCardNumber("3842029190606503");
+        transactionRequestMerchant.setAmount(amount);
+        bankService.deposit(transactionRequestMerchant);
+        log.info(" merchant deposit done");
+    }
+    private void applyWithdrawTransactionForCustomer(double amount, OrderModel orderModel) {
+        TransactionRequest transactionRequestCustomer = new TransactionRequest();
+        transactionRequestCustomer.setAmount(amount);
+        transactionRequestCustomer.setCardNumber(orderModel.getCardNumber());
+        ResponseEntity<String> withdrawResponse = bankService.withdraw(transactionRequestCustomer);
+        log.info("Customer withdrawal request processed successfully. Response: {}", withdrawResponse.getBody());
+    }
+
+    private void validateCoupon(String couponCode) {
+        if(!couponService.isValidCoupon(couponCode)){
+            log.error("coupon not valid. Order creation aborted.");
+            throw new RecordNotFoundException("coupon not valid. Order creation aborted.");
+        }
+    }
+
+    private void validateProductStockAvailability(String productCode) {
+        if(!stockService.checkAvailability(productCode)){
+            log.error("Product is not available in stock. Order creation aborted.");
+            throw new RecordNotFoundException("Product is not available in stock. Order creation aborted.");
         }
     }
 
     private void sendEmail(String to, EmailModel emailModel) {
         emailModel.setTo(to);
-        ResponseEntity<String> notificationResponse = notificationService.sendEmail(emailModel);
-        log.info("Notification sent successfully to =>", to, ". Response: {}", notificationResponse.getBody());
+        notificationService.sendEmail(emailModel);
+        log.info("Notification sent successfully!");
     }
 
     @Override
@@ -100,4 +125,6 @@ public class OrderServiceImpl implements OrderService {
     public List<Order> findAllOrderBetween(LocalDate from, LocalDate to) {
         return orderRepository.findAllByCreationDateBetween(from, to);
     }
+
+
 }

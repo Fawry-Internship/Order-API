@@ -16,11 +16,11 @@ public class Order {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
-    private String product_code;
+    private Long id;
+    private String productCode;
     private String customerEmail;
     private LocalDate creationDate;
     private double price;
     private String cardNumber;
-    private String coupon_code;
+    private String couponCode;
 }
