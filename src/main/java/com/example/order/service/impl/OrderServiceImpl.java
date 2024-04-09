@@ -13,6 +13,7 @@ import com.example.order.service.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -31,7 +32,8 @@ public class OrderServiceImpl implements OrderService {
     private final NotificationService notificationService;
     private final StockService stockService;
     private final OrderMapper mapper;
-
+    @Value("${email.merchant}")
+    private String merchantEmail;
 
     @Override
     @Transactional(rollbackOn = Exception.class)
@@ -45,11 +47,14 @@ public class OrderServiceImpl implements OrderService {
             validateProductStockAvailability(orderModel.getProductCode());
             log.info("Product is available in stock. Proceeding with order creation.");
 
-            double amountAfterDiscount =  couponService.calcAmountAfterCouponDiscount(orderModel.getCouponCode(), orderModel.getPrice());
-            log.info("Amount price After discount {}", amountAfterDiscount);
+            double amountAfterDiscount = orderModel.getPrice();
+            if(orderModel.getCouponCode() != null){
+                amountAfterDiscount =  couponService.calcAmountAfterCouponDiscount(orderModel.getCouponCode(), orderModel.getPrice());
+                log.info("Amount price After discount {}", amountAfterDiscount);
+            }
 
             applyWithdrawTransactionForCustomer(amountAfterDiscount, orderModel);
-            applyDepositTransactionForMerchant(amountAfterDiscount, orderModel);
+            applyDepositTransactionForMerchant(amountAfterDiscount);
 
             ResponseEntity<String> consumeResponse = stockService.consume(orderModel.getProductCode());
             log.info("Stock consumed successfully. Response: {}", consumeResponse.getBody());
@@ -69,8 +74,8 @@ public class OrderServiceImpl implements OrderService {
 
             // Send notification
             EmailModel emailModel = new EmailModel(order.getCustomerEmail(), "Order creation", order.getProductCode(), String.valueOf(amountAfterDiscount), String.valueOf(order.getCreationDate()));
-
-            sendEmail(order.getCustomerEmail(), emailModel);
+            sendEmail(order.getCustomerEmail(), emailModel); //customer
+            sendEmail(merchantEmail, emailModel); //merchant
             return "success";
         } catch (HttpClientErrorException e) {
             log.error("Error occurred during order creation: {}", e.getMessage());
@@ -81,9 +86,9 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void applyDepositTransactionForMerchant(double amount, OrderModel orderModel) {
+    private void applyDepositTransactionForMerchant(double amount) {
         TransactionRequest transactionRequestMerchant = new TransactionRequest();
-        transactionRequestMerchant.setCardNumber("3842029190606503");
+        transactionRequestMerchant.setCardNumber("46ff286a6a694b90");
         transactionRequestMerchant.setAmount(amount);
         bankService.deposit(transactionRequestMerchant);
         log.info(" merchant deposit done");
@@ -125,6 +130,4 @@ public class OrderServiceImpl implements OrderService {
     public List<Order> findAllOrderBetween(LocalDate from, LocalDate to) {
         return orderRepository.findAllByCreationDateBetween(from, to);
     }
-
-
 }
