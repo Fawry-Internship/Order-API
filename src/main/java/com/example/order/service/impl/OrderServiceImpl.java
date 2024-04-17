@@ -88,7 +88,7 @@ public class OrderServiceImpl implements OrderService {
 
     private void applyDepositTransactionForMerchant(double amount) {
         TransactionRequest transactionRequestMerchant = new TransactionRequest();
-        transactionRequestMerchant.setCardNumber("46ff286a6a694b90");
+        transactionRequestMerchant.setCardNumber("3830828855753986");
         transactionRequestMerchant.setAmount(amount);
         bankService.deposit(transactionRequestMerchant);
         log.info(" merchant deposit done");
